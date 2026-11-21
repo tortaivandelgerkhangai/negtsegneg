@@ -26,17 +26,16 @@ function isoDate(d: Date) {
 }
 
 export default function HomePage() {
-  const todayIso = isoDate(new Date());
-
+  const [todayIso, setTodayIso] = useState("");
   const [hws, setHws] = useState<Homework[]>([]);
   const [chat, setChat] = useState<ChatMessage[]>([]);
   const [loaded, setLoaded] = useState(false);
 
-  const [curYear, setCurYear] = useState(() => new Date().getFullYear());
-  const [curMonth, setCurMonth] = useState(() => new Date().getMonth());
-  const [selDate, setSelDate] = useState(todayIso);
+  const [curYear, setCurYear] = useState<number | null>(null);
+  const [curMonth, setCurMonth] = useState<number | null>(null);
+  const [selDate, setSelDate] = useState("");
 
-  const [formDate, setFormDate] = useState(todayIso);
+  const [formDate, setFormDate] = useState("");
   const [subj, setSubj] = useState("");
   const [task, setTask] = useState("");
 
@@ -44,8 +43,17 @@ export default function HomePage() {
   const [msgText, setMsgText] = useState("");
   const chatEndRef = useRef<HTMLDivElement | null>(null);
 
-  // Load initial data from localStorage
+  // Initialize client date & load data from localStorage
   useEffect(() => {
+    const now = new Date();
+    const currentIso = isoDate(now);
+
+    setTodayIso(currentIso);
+    setCurYear(now.getFullYear());
+    setCurMonth(now.getMonth());
+    setSelDate(currentIso);
+    setFormDate(currentIso);
+
     try {
       const savedHw = JSON.parse(localStorage.getItem("hw") || "null");
       const savedChat = JSON.parse(localStorage.getItem("chat") || "null");
@@ -53,10 +61,13 @@ export default function HomePage() {
       if (Array.isArray(savedHw) && savedHw.length > 0) {
         setHws(savedHw);
       } else {
-        const t = new Date();
-        const plusTwo = new Date(t.getFullYear(), t.getMonth(), t.getDate() + 2);
+        const plusTwo = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate() + 2
+        );
         setHws([
-          { date: isoDate(t), subj: "Математик", task: "Хуудас 42", done: false },
+          { date: currentIso, subj: "Математик", task: "Хуудас 42", done: false },
           { date: isoDate(plusTwo), subj: "Монгол хэл", task: "Эсэй бичих", done: false },
         ]);
       }
@@ -91,6 +102,7 @@ export default function HomePage() {
   }, [chat, loaded]);
 
   function changeMonth(delta: number) {
+    if (curYear === null || curMonth === null) return;
     const next = new Date(curYear, curMonth + delta, 1);
     setCurYear(next.getFullYear());
     setCurMonth(next.getMonth());
@@ -99,6 +111,7 @@ export default function HomePage() {
   function jumpToToday() {
     const now = new Date();
     const iso = isoDate(now);
+    setTodayIso(iso);
     setCurYear(now.getFullYear());
     setCurMonth(now.getMonth());
     setSelDate(iso);
@@ -142,9 +155,11 @@ export default function HomePage() {
   }
 
   // Calendar grid calculations
-  const firstDayOfMonth = new Date(curYear, curMonth, 1);
+  const activeYear = curYear ?? 2026;
+  const activeMonth = curMonth ?? 0;
+  const firstDayOfMonth = new Date(activeYear, activeMonth, 1);
   const startOffset = (firstDayOfMonth.getDay() + 6) % 7; // Monday = 0
-  const daysInMonth = new Date(curYear, curMonth + 1, 0).getDate();
+  const daysInMonth = new Date(activeYear, activeMonth + 1, 0).getDate();
   const pendingCount = hws.filter((h) => !h.done).length;
 
   const selectedDayItems = hws
@@ -213,7 +228,9 @@ export default function HomePage() {
           {/* Preview Card */}
           <div className="bg-white/10 backdrop-blur-sm border border-white/15 rounded-2xl p-6 space-y-4">
             <div className="flex items-center justify-between border-b border-white/10 pb-3">
-              <span className="font-semibold text-sm">Өнөөдрийн тойм ({todayIso})</span>
+              <span className="font-semibold text-sm">
+                Өнөөдрийн тойм {todayIso ? `(${todayIso})` : ""}
+              </span>
               <span className="text-xs bg-[#f2b134] text-[#1f2a37] font-bold px-2.5 py-0.5 rounded-full">
                 Идэвхтэй
               </span>
@@ -274,6 +291,7 @@ export default function HomePage() {
           <div className="flex flex-wrap items-center justify-between gap-2 mb-4">
             <div className="flex items-center gap-2">
               <button
+                type="button"
                 onClick={() => changeMonth(-1)}
                 className="bg-[#1f3a5f] text-white px-3 py-1.5 rounded-lg hover:opacity-90 cursor-pointer"
                 aria-label="Өмнөх сар"
@@ -281,9 +299,10 @@ export default function HomePage() {
                 ‹
               </button>
               <h2 className="text-lg font-bold min-w-[150px] text-center">
-                {curYear} оны {curMonth + 1}-р сар
+                {activeYear} оны {activeMonth + 1}-р сар
               </h2>
               <button
+                type="button"
                 onClick={() => changeMonth(1)}
                 className="bg-[#1f3a5f] text-white px-3 py-1.5 rounded-lg hover:opacity-90 cursor-pointer"
                 aria-label="Дараах сар"
@@ -293,6 +312,7 @@ export default function HomePage() {
             </div>
 
             <button
+              type="button"
               onClick={jumpToToday}
               className="text-xs font-semibold bg-[#eef3fa] text-[#1f3a5f] px-3 py-1.5 rounded-lg hover:bg-[#dce6f5] cursor-pointer"
             >
@@ -316,8 +336,8 @@ export default function HomePage() {
 
             {Array.from({ length: daysInMonth }).map((_, idx) => {
               const dayNum = idx + 1;
-              const cellIso = isoDate(new Date(curYear, curMonth, dayNum));
-              const isToday = cellIso === todayIso;
+              const cellIso = isoDate(new Date(activeYear, activeMonth, dayNum));
+              const isToday = Boolean(todayIso) && cellIso === todayIso;
               const isSelected = cellIso === selDate;
               const dayHws = hws.filter((x) => x.date === cellIso);
 
@@ -395,7 +415,7 @@ export default function HomePage() {
 
             <div className="mt-4 pt-3 border-t border-slate-200">
               <h4 className="font-semibold text-sm mb-2">
-                Сонгосон өдөр ({selDate})
+                Сонгосон өдөр {selDate ? `(${selDate})` : ""}
               </h4>
               {selectedDayItems.length === 0 ? (
                 <p className="text-xs text-slate-500">Хоосон</p>
@@ -477,7 +497,7 @@ export default function HomePage() {
 
       {/* Footer */}
       <footer className="bg-[#1f3a5f] text-white/70 text-xs py-5 px-5 text-center">
-        © {new Date().getFullYear()} нэг цэг — Ангийн даалгавар ба харилцааны платформ
+        © {activeYear} нэг цэг — Ангийн даалгавар ба харилцааны платформ
       </footer>
     </div>
   );
